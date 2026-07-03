@@ -15,5 +15,5 @@ A backend application created during my software development internship at Highn
 Node.js, TypeScript, (Express/Nest later), Git, ESLint, Prettier, Postman
 
 ## Project Status:
-In active development...
+In active development.
 
