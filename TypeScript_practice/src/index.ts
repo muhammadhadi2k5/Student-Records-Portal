@@ -19,6 +19,105 @@ function ask(question: string): Promise<string> {
     });
 }
 
+async function askYesNo(question: string): Promise<boolean> {
+    while (true) {
+        const answer = (await ask(question)).trim().toLowerCase();
+        if (answer === "y" || answer === "yes") {
+            return true;
+        }
+        if (answer === "n" || answer === "no") {
+            return false;
+        }
+        console.log("Please enter 'y' or 'n'.");
+    }
+}
+
+function validateName(name: string): void {
+    if (name === undefined || name === null || name.trim().length === 0) {
+        throw new Error("Name cannot be empty.");
+    }
+
+    if (name.trim().length < 2) {
+        throw new Error("Name must be at least 2 characters long.");
+    }
+}
+
+function validateAge(age: number): void {
+    if (Number.isNaN(age)) {
+        throw new Error("Age must be a number.");
+    }
+
+    if (age <= 0) {
+        throw new Error("Age must be a positive number.");
+    }
+
+    if (age > 120) {
+        throw new Error("Age must be a realistic number (120 or less).");
+    }
+}
+
+function validateEmail(email: string): void {
+    if (email === undefined || email === null || email.trim().length === 0) {
+        throw new Error("Email cannot be empty.");
+    }
+
+    if (!email.includes("@")) {
+        throw new Error("Email must contain an '@' symbol.");
+    }
+
+    if (!email.includes(".")) {
+        throw new Error("Email must contain a valid domain (e.g. '.com').");
+    }
+}
+
+async function askValidatedName(question: string): Promise<string> {
+    while (true) {
+        const input = await ask(question);
+        try {
+            validateName(input);
+            return input.trim();
+        } catch (error) {
+            if (error instanceof Error) {
+                console.log(`Error: ${error.message}`);
+            }
+        }
+    }
+}
+
+async function askValidatedAge(question: string): Promise<number> {
+    while (true) {
+        const input = await ask(question);
+        const age = Number(input);
+
+        try {
+            validateAge(age);
+            return age;
+        } catch (error) {
+            if (error instanceof Error) {
+                console.log(`Error: ${error.message}`);
+            }
+        }
+    }
+}
+
+async function askValidatedEmail(question: string): Promise<string> {
+    while (true) {
+        const input = await ask(question);
+        try {
+            validateEmail(input);
+            return input.trim();
+        } catch (error) {
+            if (error instanceof Error) {
+                console.log(`Error: ${error.message}`);
+            }
+        }
+    }
+}
+
+function generateStudentId(): string {
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
 async function showMenu(): Promise<void> {
     console.log("\n--- Student Manager ---");
     console.log("1. Add Student");
@@ -49,27 +148,17 @@ async function showMenu(): Promise<void> {
 }
 
 async function addStudent(): Promise<void> {
-    const name = await ask("Enter name: ");
-    const ageInput = await ask("Enter age: ");
-    const email = await ask("Enter email: ");
+    const name = await askValidatedName("Enter name: ");
+    const age = await askValidatedAge("Enter age: ");
+    const email = await askValidatedEmail("Enter email: ");
 
-    const age = Number(ageInput);
+    const id = generateStudentId();
+    const newStudent = new Student(id, name, age, email);
 
-    try {
-        validateStudentInput(name, age, email);
+    const savedStudent = await simulateApiCall(newStudent);
+    studentRepo.add(savedStudent);
 
-        const id = String(Date.now());
-        const newStudent = new Student(id, name, age, email);
-
-        const savedStudent = await simulateApiCall(newStudent);
-        studentRepo.add(savedStudent);
-
-        console.log("Student added successfully:", savedStudent);
-    } catch (error) {
-        if (error instanceof Error) {
-            console.log("Error:", error.message);
-        }
-    }
+    console.log("Student added successfully:", savedStudent);
 }
 
 function listStudents(): void {
@@ -97,24 +186,26 @@ async function updateStudent(): Promise<void> {
         return;
     }
 
-    const name = await ask(`New name (${existing.name}): `);
-    const ageInput = await ask(`New age (${existing.age}): `);
-    const email = await ask(`New email (${existing.email}): `);
+    let name = existing.name;
+    let age = existing.age;
+    let email = existing.email;
 
-    const age = Number(ageInput);
-
-    try {
-        validateStudentInput(name, age, email);
-
-        const updatedStudent = new Student(id, name, age, email);
-        studentRepo.updateById(id, (s) => s.id, updatedStudent);
-
-        console.log("Student updated successfully:", updatedStudent);
-    } catch (error) {
-        if (error instanceof Error) {
-            console.log("Error:", error.message);
-        }
+    if (await askYesNo(`Update name? (current: ${existing.name}) [y/n]: `)) {
+        name = await askValidatedName("Enter new name: ");
     }
+
+    if (await askYesNo(`Update age? (current: ${existing.age}) [y/n]: `)) {
+        age = await askValidatedAge("Enter new age: ");
+    }
+
+    if (await askYesNo(`Update email? (current: ${existing.email}) [y/n]: `)) {
+        email = await askValidatedEmail("Enter new email: ");
+    }
+
+    const updatedStudent = new Student(id, name, age, email);
+    studentRepo.updateById(id, (s) => s.id, updatedStudent);
+
+    console.log("Student updated successfully:", updatedStudent);
 }
 
 async function deleteStudent(): Promise<void> {
