@@ -4,6 +4,8 @@
   "description": "A backend application created during my software development internship at Highnoon Laboratories LTD.",
   "main": "index.js",
   "scripts": {
+    "dev": "ts-node TypeScript_practice/src/index.ts",
+    "typecheck": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
