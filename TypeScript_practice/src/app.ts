@@ -1,8 +1,9 @@
+import cors from 'cors';
 import path from 'node:path';
-import express, { type ErrorRequestHandler, type NextFunction, type Request, type Response } from 'express';
+import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
-import { Student, type CreateStudentDTO } from './models/student';
+import { Student, type CreateStudentDTO, type StudentStatus, STUDENT_STATUSES } from './models/student';
 import { validateStudentInput } from './validation';
 
 function generateStudentId(): string {
@@ -17,9 +18,15 @@ function isCreateStudentPayload(body: unknown): body is CreateStudentDTO {
   const candidate = body as Record<string, unknown>;
 
   return (
-    typeof candidate.name === 'string' &&
-    typeof candidate.age === 'number' &&
-    typeof candidate.email === 'string'
+    typeof candidate.firstName === 'string' &&
+    typeof candidate.lastName === 'string' &&
+    typeof candidate.email === 'string' &&
+    typeof candidate.studentId === 'string' &&
+    typeof candidate.program === 'string' &&
+    typeof candidate.year === 'number' &&
+    typeof candidate.status === 'string' &&
+    typeof candidate.enrolledAt === 'string' &&
+    STUDENT_STATUSES.includes(candidate.status as StudentStatus)
   );
 }
 
@@ -29,6 +36,7 @@ export function createApp(options?: { dataFilePath?: string }) {
   const dataFilePath = options?.dataFilePath ?? defaultDataFilePath;
   const studentRepo = new Repository<Student>(dataFilePath);
 
+  app.use(cors());
   app.use(express.json());
 
   app.get('/students', async (_req: Request, res: Response) => {
@@ -39,13 +47,33 @@ export function createApp(options?: { dataFilePath?: string }) {
   app.post('/students', async (req: Request, res: Response) => {
     try {
       if (!isCreateStudentPayload(req.body)) {
-        return res.status(400).json({ error: 'Body must include name, age, and email.' });
+        return res.status(400).json({ error: 'Request body is missing required student fields.' });
       }
 
       const payload = req.body;
-      validateStudentInput(payload.name.trim(), payload.age, payload.email.trim());
+      validateStudentInput(
+        payload.firstName.trim(),
+        payload.lastName.trim(),
+        payload.email.trim(),
+        payload.studentId.trim(),
+        payload.program.trim(),
+        payload.year,
+        payload.status,
+        payload.enrolledAt,
+      );
 
-      const student = new Student(generateStudentId(), payload.name.trim(), payload.age, payload.email.trim());
+      const student = new Student(
+        generateStudentId(),
+        payload.firstName.trim(),
+        payload.lastName.trim(),
+        payload.email.trim(),
+        payload.studentId.trim(),
+        payload.program.trim(),
+        payload.year,
+        payload.status,
+        payload.enrolledAt,
+      );
+
       const savedStudent = await simulateApiCall(student, 0);
       studentRepo.add(savedStudent);
 
@@ -70,14 +98,35 @@ export function createApp(options?: { dataFilePath?: string }) {
   app.put('/students/:id', async (req: Request, res: Response) => {
     try {
       if (!isCreateStudentPayload(req.body)) {
-        return res.status(400).json({ error: 'Body must include name, age, and email.' });
+        return res.status(400).json({ error: 'Request body is missing required student fields.' });
       }
 
       const studentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const payload = req.body;
-      validateStudentInput(payload.name.trim(), payload.age, payload.email.trim());
 
-      const updatedStudent = new Student(studentId, payload.name.trim(), payload.age, payload.email.trim());
+      validateStudentInput(
+        payload.firstName.trim(),
+        payload.lastName.trim(),
+        payload.email.trim(),
+        payload.studentId.trim(),
+        payload.program.trim(),
+        payload.year,
+        payload.status,
+        payload.enrolledAt,
+      );
+
+      const updatedStudent = new Student(
+        studentId,
+        payload.firstName.trim(),
+        payload.lastName.trim(),
+        payload.email.trim(),
+        payload.studentId.trim(),
+        payload.program.trim(),
+        payload.year,
+        payload.status,
+        payload.enrolledAt,
+      );
+
       const updated = studentRepo.updateById(studentId, (item) => item.id, updatedStudent);
 
       if (!updated) {
