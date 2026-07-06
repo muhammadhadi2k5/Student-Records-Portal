@@ -60,11 +60,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to: '/' | '/students/$id' | '/students/new' | '/students/$id/edit'
   id:
-    | '__root__'
-    | '/'
-    | '/students/$id'
-    | '/students/new'
-    | '/students/$id/edit'
+    '__root__' | '/' | '/students/$id' | '/students/new' | '/students/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {

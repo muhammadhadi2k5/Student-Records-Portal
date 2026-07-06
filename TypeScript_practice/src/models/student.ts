@@ -25,8 +25,20 @@ export interface CreateStudentDTO {
     email: string;
 }
 
-export enum StudentStatusEnum {
-    Active = "active",
-    Inactive = "inactive",
-    Graduated = "graduated"
-}
+export type StudentStatus = "Active" | "On Leave" | "Graduated" | "Withdrawn";
+
+export const STUDENT_STATUSES = ["Active", "On Leave", "Graduated", "Withdrawn"] as const;
+
+export type StudentRecord = {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    studentId: string;
+    program: string;
+    year: number;
+    status: StudentStatus;
+    enrolledAt: string;
+};
+
+export type CreateStudentRecordDTO = Omit<StudentRecord, "id">;

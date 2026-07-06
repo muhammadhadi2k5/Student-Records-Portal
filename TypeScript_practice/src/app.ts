@@ -3,14 +3,14 @@ import path from 'node:path';
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
-import { Student, type CreateStudentDTO, type StudentStatus, STUDENT_STATUSES } from './models/student';
-import { validateStudentInput } from './validation';
+import { type CreateStudentRecordDTO, type StudentRecord, type StudentStatus, STUDENT_STATUSES } from './models/student';
+import { validateStudentRecordInput } from './validation';
 
 function generateStudentId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function isCreateStudentPayload(body: unknown): body is CreateStudentDTO {
+function isCreateStudentPayload(body: unknown): body is CreateStudentRecordDTO {
   if (typeof body !== 'object' || body === null) {
     return false;
   }
@@ -34,7 +34,7 @@ export function createApp(options?: { dataFilePath?: string }) {
   const app = express();
   const defaultDataFilePath = path.resolve(__dirname, '..', 'data', 'students.json');
   const dataFilePath = options?.dataFilePath ?? defaultDataFilePath;
-  const studentRepo = new Repository<Student>(dataFilePath);
+  const studentRepo = new Repository<StudentRecord>(dataFilePath);
 
   app.use(cors());
   app.use(express.json());
@@ -51,7 +51,7 @@ export function createApp(options?: { dataFilePath?: string }) {
       }
 
       const payload = req.body;
-      validateStudentInput(
+      validateStudentRecordInput(
         payload.firstName.trim(),
         payload.lastName.trim(),
         payload.email.trim(),
@@ -62,17 +62,17 @@ export function createApp(options?: { dataFilePath?: string }) {
         payload.enrolledAt,
       );
 
-      const student = new Student(
-        generateStudentId(),
-        payload.firstName.trim(),
-        payload.lastName.trim(),
-        payload.email.trim(),
-        payload.studentId.trim(),
-        payload.program.trim(),
-        payload.year,
-        payload.status,
-        payload.enrolledAt,
-      );
+      const student: StudentRecord = {
+        id: generateStudentId(),
+        firstName: payload.firstName.trim(),
+        lastName: payload.lastName.trim(),
+        email: payload.email.trim(),
+        studentId: payload.studentId.trim(),
+        program: payload.program.trim(),
+        year: payload.year,
+        status: payload.status,
+        enrolledAt: payload.enrolledAt,
+      };
 
       const savedStudent = await simulateApiCall(student, 0);
       studentRepo.add(savedStudent);
@@ -104,7 +104,7 @@ export function createApp(options?: { dataFilePath?: string }) {
       const studentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const payload = req.body;
 
-      validateStudentInput(
+      validateStudentRecordInput(
         payload.firstName.trim(),
         payload.lastName.trim(),
         payload.email.trim(),
@@ -115,17 +115,17 @@ export function createApp(options?: { dataFilePath?: string }) {
         payload.enrolledAt,
       );
 
-      const updatedStudent = new Student(
-        studentId,
-        payload.firstName.trim(),
-        payload.lastName.trim(),
-        payload.email.trim(),
-        payload.studentId.trim(),
-        payload.program.trim(),
-        payload.year,
-        payload.status,
-        payload.enrolledAt,
-      );
+      const updatedStudent: StudentRecord = {
+        id: studentId,
+        firstName: payload.firstName.trim(),
+        lastName: payload.lastName.trim(),
+        email: payload.email.trim(),
+        studentId: payload.studentId.trim(),
+        program: payload.program.trim(),
+        year: payload.year,
+        status: payload.status,
+        enrolledAt: payload.enrolledAt,
+      };
 
       const updated = studentRepo.updateById(studentId, (item) => item.id, updatedStudent);
 
