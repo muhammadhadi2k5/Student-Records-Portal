@@ -1,5 +1,5 @@
 import path from 'node:path';
-import express, { type Request, type Response } from 'express';
+import express, { type ErrorRequestHandler, type NextFunction, type Request, type Response } from 'express';
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
 import { Student, type CreateStudentDTO } from './models/student';
@@ -102,6 +102,15 @@ export function createApp(options?: { dataFilePath?: string }) {
 
     return res.status(200).json({ message: 'Student deleted successfully.' });
   });
+
+  const jsonErrorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+    if (err instanceof SyntaxError && 'status' in err && err.status === 400 && 'body' in err) {
+      return res.status(400).json({ error: 'Invalid JSON payload.' });
+    }
+    throw err;
+  };
+
+  app.use(jsonErrorHandler);
 
   return app;
 }
