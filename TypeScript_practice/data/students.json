@@ -1,16 +1,5 @@
 [
   {
-    "id": "mr93k7ljm80f",
-    "firstName": "John",
-    "lastName": "Wick",
-    "email": "john@gmail.com",
-    "studentId": "20241413",
-    "program": "Comp Sci",
-    "year": 1,
-    "status": "Active",
-    "enrolledAt": "2026-07-06"
-  },
-  {
     "id": "mr93p03vmgfm",
     "firstName": "Peter",
     "lastName": "Parker",
