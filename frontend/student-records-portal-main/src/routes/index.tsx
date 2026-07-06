@@ -60,7 +60,7 @@ function StudentsIndex() {
             Student directory
           </h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            A complete record of enrolled students. Use the search field to locate a record, or
+            A complete record of enrolled students. Use the search field to locate a record, or 
             add a new student to the registry.
           </p>
         </div>
@@ -140,14 +140,13 @@ function StudentsIndex() {
                       >
                         View
                       </Link>
-                      <button
-                        onClick={() =>
-                          router.navigate({ to: "/students/$id/edit", params: { id: s.id } })
-                        }
+                      <Link
+                        to="/students/$id/edit"
+                        params={{ id: s.id }}
                         className="text-primary hover:underline"
                       >
                         Edit
-                      </button>
+                      </Link>
                       <button
                         onClick={() => handleDelete(s)}
                         className="text-destructive hover:underline"
