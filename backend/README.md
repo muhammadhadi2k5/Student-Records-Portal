@@ -1,6 +1,6 @@
-# TypeScript Practice API
+# Student Records API
 
-This project is a small student management backend built with TypeScript and Express.
+A small student management backend built with TypeScript and Express. This is the backend half of the AI Campus Assistant project — see the [root README](../README.md) for overall project status and how to run it alongside the frontend.
 
 ## What it does
 
@@ -18,6 +18,7 @@ This project is a small student management backend built with TypeScript and Exp
 - `src/repository.ts` - file-backed repository storage
 - `src/models/student.ts` - student model definitions
 - `src/validation.ts` - input validation logic
+- `src/index.ts` - an earlier CLI-based student manager, superseded by the REST API; kept for history, not used by anything
 - `data/students.json` - persisted student data
 
 ## How to run
@@ -44,29 +45,25 @@ This project is a small student management backend built with TypeScript and Exp
 
 ## Example POST request
 
-From PowerShell, use valid JSON like this:
+From PowerShell, use valid JSON like this (all fields are required, and `status` must be one of `Active`, `On Leave`, `Graduated`, `Withdrawn`):
 
 ```powershell
-$body = '{"name":"Hadi","age":20,"email":"hadi@example.com"}'
+$body = '{"firstName":"Ada","lastName":"Lovelace","email":"ada@example.com","studentId":"2024-1001","program":"Computer Science","year":2,"status":"Active","enrolledAt":"2024-09-01"}'
 curl.exe -i -X POST http://localhost:3000/students -H "Content-Type: application/json" -d $body
 ```
 or use Postman to post JSON
 
 ## Persistence
 
-The app writes student records to:
-
-- `TypeScript_practice/data/students.json`
-
-This means new students persist across server restarts.
+The app writes student records to `data/students.json` (relative to this folder), so new students persist across server restarts.
 
 ## Run tests
 
-From the `TypeScript_practice` folder:
+From this `backend` folder:
 
 ```bash
 npm run typecheck
-node --test -r ts-node/register ./src/app.test.ts
+npm test
 ```
 
 
