@@ -4,7 +4,7 @@ import express, { type ErrorRequestHandler, type Request, type Response } from '
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
 import { type CreateStudentRecordDTO, type StudentRecord, type StudentStatus, STUDENT_STATUSES } from './models/student';
-import { validateStudentRecordInput } from './validation';
+import { validatePagination, validateStudentRecordInput } from './validation';
 
 function generateStudentId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -39,9 +39,36 @@ export function createApp(options?: { dataFilePath?: string }) {
   app.use(cors());
   app.use(express.json());
 
-  app.get('/students', async (_req: Request, res: Response) => {
-    const students = await simulateApiCall(studentRepo.getAll(), 0);
-    return res.status(200).json(students);
+  app.get('/students', async (req: Request, res: Response) => {
+    try {
+      const rawPage = Array.isArray(req.query.page) ? req.query.page[0] : req.query.page;
+      const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+      const rawSearch = Array.isArray(req.query.search) ? req.query.search[0] : req.query.search;
+
+      const { page, limit } = validatePagination(rawPage, rawLimit);
+      const search = typeof rawSearch === 'string' ? rawSearch.trim().toLowerCase() : '';
+
+      const allStudents = await simulateApiCall(studentRepo.getAll(), 0);
+
+      const filtered = search
+        ? allStudents.filter((s) =>
+            [s.firstName, s.lastName, s.email, s.studentId, s.program]
+              .join(' ')
+              .toLowerCase()
+              .includes(search),
+          )
+        : allStudents;
+
+      const total = filtered.length;
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+      const start = (page - 1) * limit;
+      const data = filtered.slice(start, start + limit);
+
+      return res.status(200).json({ data, page, limit, total, totalPages });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid pagination parameters.';
+      return res.status(400).json({ error: message });
+    }
   });
 
   app.post('/students', async (req: Request, res: Response) => {

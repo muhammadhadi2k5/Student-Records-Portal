@@ -1,6 +1,6 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { deleteStudent, listStudents, type Student } from "@/lib/students-api";
 
 export const Route = createFileRoute("/")({
@@ -14,32 +14,36 @@ const statusStyles: Record<Student["status"], string> = {
   Withdrawn: "bg-muted text-muted-foreground border-border",
 };
 
+const PAGE_SIZE = 10;
+
 function StudentsIndex() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: students, isLoading, isError } = useQuery({
-    queryKey: ["students"],
-    queryFn: listStudents,
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedQuery(query), 300);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedQuery]);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["students", page, debouncedQuery],
+    queryFn: () => listStudents({ page, limit: PAGE_SIZE, search: debouncedQuery }),
   });
+
+  const students = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 0;
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => deleteStudent(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["students"] }),
   });
-
-  const filtered = useMemo(() => {
-    if (!students) return [];
-    const q = query.trim().toLowerCase();
-    if (!q) return students;
-    return students.filter((s) =>
-      [s.firstName, s.lastName, s.email, s.studentId, s.program]
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [students, query]);
 
   function handleDelete(s: Student) {
     if (!confirm(`Remove ${s.firstName} ${s.lastName} from the registry?`)) return;
@@ -80,7 +84,9 @@ function StudentsIndex() {
           className="w-full max-w-sm rounded-md border border-input bg-card px-3 py-2 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
         />
         <p className="text-xs text-muted-foreground">
-          {students ? `${filtered.length} of ${students.length}` : ""}
+          {total > 0
+            ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`
+            : ""}
         </p>
       </div>
 
@@ -91,7 +97,7 @@ function StudentsIndex() {
           <div className="p-10 text-center text-sm text-destructive">
             Unable to load student records.
           </div>
-        ) : filtered.length === 0 ? (
+        ) : students.length === 0 ? (
           <div className="p-10 text-center text-sm text-muted-foreground">
             No students match your search.
           </div>
@@ -108,7 +114,7 @@ function StudentsIndex() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.map((s) => (
+              {students.map((s) => (
                 <tr key={s.id} className="transition hover:bg-secondary/40">
                   <td className="px-4 py-3">
                     <Link
@@ -160,6 +166,30 @@ function StudentsIndex() {
           </table>
         )}
       </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-md border border-input bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-md border border-input bg-card px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-secondary/60 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -88,6 +88,21 @@ export function validateStudentInput(
     }
 }
 
+export function validatePagination(page: unknown, limit: unknown): { page: number; limit: number } {
+    const parsedPage = page === undefined ? 1 : Number(page);
+    const parsedLimit = limit === undefined ? 10 : Number(limit);
+
+    if (!Number.isInteger(parsedPage) || parsedPage < 1) {
+        throw new Error("Page must be a positive integer.");
+    }
+
+    if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        throw new Error("Limit must be an integer between 1 and 100.");
+    }
+
+    return { page: parsedPage, limit: parsedLimit };
+}
+
 export function validateStudentRecordInput(
     firstName: string,
     lastName: string,

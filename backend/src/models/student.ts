@@ -42,3 +42,11 @@ export type StudentRecord = {
 };
 
 export type CreateStudentRecordDTO = Omit<StudentRecord, "id">;
+
+export type PaginatedStudents = {
+    data: StudentRecord[];
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+};
