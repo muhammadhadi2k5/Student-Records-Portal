@@ -117,6 +117,90 @@ test('paginates, searches, and validates query params on GET /students', async (
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
+test('rejects a duplicate Student ID that differs only by formatting, but allows updating a record unchanged', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-dup-'));
+  const dataFile = path.join(tempDir, 'students.json');
+  const app = createApp({ dataFilePath: dataFile });
+
+  const original = await request(app)
+    .post('/students')
+    .send({
+      firstName: 'Dana',
+      lastName: 'Scully',
+      email: 'dana@example.com',
+      studentId: '2024-1001',
+      program: 'Biology',
+      year: 2,
+      status: 'Active',
+      enrolledAt: '2026-01-15',
+    })
+    .expect(201);
+
+  // Same digits, different punctuation/spacing -> should be rejected as a duplicate.
+  const duplicateResponse = await request(app)
+    .post('/students')
+    .send({
+      firstName: 'Fox',
+      lastName: 'Mulder',
+      email: 'fox@example.com',
+      studentId: '2024 1001',
+      program: 'Biology',
+      year: 2,
+      status: 'Active',
+      enrolledAt: '2026-01-15',
+    })
+    .expect(400);
+  assert.match(duplicateResponse.body.error, /already exists/i);
+
+  // A genuinely different ID is fine.
+  await request(app)
+    .post('/students')
+    .send({
+      firstName: 'Fox',
+      lastName: 'Mulder',
+      email: 'fox@example.com',
+      studentId: '2024-1002',
+      program: 'Biology',
+      year: 2,
+      status: 'Active',
+      enrolledAt: '2026-01-15',
+    })
+    .expect(201);
+
+  // Updating Dana's own record without changing the ID must not trip the duplicate check.
+  await request(app)
+    .put(`/students/${original.body.id}`)
+    .send({
+      firstName: 'Dana',
+      lastName: 'Scully',
+      email: 'dana@example.com',
+      studentId: '2024-1001',
+      program: 'Biology',
+      year: 3,
+      status: 'Active',
+      enrolledAt: '2026-01-15',
+    })
+    .expect(200);
+
+  // But updating Dana's record to steal Fox's ID must be rejected.
+  const stolenIdResponse = await request(app)
+    .put(`/students/${original.body.id}`)
+    .send({
+      firstName: 'Dana',
+      lastName: 'Scully',
+      email: 'dana@example.com',
+      studentId: '2024-1002',
+      program: 'Biology',
+      year: 3,
+      status: 'Active',
+      enrolledAt: '2026-01-15',
+    })
+    .expect(400);
+  assert.match(stolenIdResponse.body.error, /already exists/i);
+
+  fs.rmSync(tempDir, { recursive: true, force: true });
+});
+
 test('writes to the project data file even when the current working directory changes', async () => {
   const originalCwd = process.cwd();
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-cwd-'));

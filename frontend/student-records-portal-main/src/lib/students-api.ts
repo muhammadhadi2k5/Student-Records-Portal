@@ -94,6 +94,20 @@ async function delay<T>(value: T): Promise<T> {
   return new Promise((r) => setTimeout(() => r(value), 150));
 }
 
+function normalizeStudentId(studentId: string): string {
+  return studentId.replace(/\D/g, "");
+}
+
+async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (body && typeof body.error === "string") return body.error;
+  } catch {
+    // response wasn't JSON; fall through to the generic message
+  }
+  return fallback;
+}
+
 // ---- API ----
 
 export async function listStudents(params: ListStudentsParams = {}): Promise<PaginatedStudents> {
@@ -105,7 +119,7 @@ export async function listStudents(params: ListStudentsParams = {}): Promise<Pag
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) query.set("search", search);
     const res = await fetch(`${API_BASE}/students?${query}`);
-    if (!res.ok) throw new Error("Failed to load students");
+    if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to load students"));
     return res.json();
   }
 
@@ -130,7 +144,7 @@ export async function listStudents(params: ListStudentsParams = {}): Promise<Pag
 export async function getStudent(id: string): Promise<Student> {
   if (API_BASE) {
     const res = await fetch(`${API_BASE}/students/${id}`);
-    if (!res.ok) throw new Error("Student not found");
+    if (!res.ok) throw new Error(await parseErrorMessage(res, "Student not found"));
     return res.json();
   }
   const s = readLocal().find((x) => x.id === id);
@@ -145,10 +159,14 @@ export async function createStudent(input: StudentInput): Promise<Student> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    if (!res.ok) throw new Error("Failed to create student");
+    if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to create student"));
     return res.json();
   }
   const list = readLocal();
+  const normalizedId = normalizeStudentId(input.studentId.trim());
+  if (normalizedId && list.some((s) => normalizeStudentId(s.studentId) === normalizedId)) {
+    throw new Error("A student with this Student ID already exists.");
+  }
   const student: Student = { id: newId(), ...input };
   writeLocal([student, ...list]);
   return delay(student);
@@ -161,12 +179,16 @@ export async function updateStudent(id: string, input: StudentInput): Promise<St
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    if (!res.ok) throw new Error("Failed to update student");
+    if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to update student"));
     return res.json();
   }
   const list = readLocal();
   const idx = list.findIndex((x) => x.id === id);
   if (idx === -1) throw new Error("Student not found");
+  const normalizedId = normalizeStudentId(input.studentId.trim());
+  if (normalizedId && list.some((s) => s.id !== id && normalizeStudentId(s.studentId) === normalizedId)) {
+    throw new Error("A student with this Student ID already exists.");
+  }
   const updated: Student = { id, ...input };
   list[idx] = updated;
   writeLocal(list);
@@ -176,7 +198,7 @@ export async function updateStudent(id: string, input: StudentInput): Promise<St
 export async function deleteStudent(id: string): Promise<void> {
   if (API_BASE) {
     const res = await fetch(`${API_BASE}/students/${id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Failed to delete student");
+    if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to delete student"));
     return;
   }
   writeLocal(readLocal().filter((x) => x.id !== id));

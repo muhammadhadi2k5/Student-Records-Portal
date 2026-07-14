@@ -64,6 +64,10 @@ Response shape:
 }
 ```
 
+### Student ID uniqueness
+
+`POST /students` and `PUT /students/:id` reject a `studentId` that already belongs to another student. The comparison ignores everything except digits, so `"2024-1001"`, `"2024 1001"`, and `"S2024/1001"` are all treated as the same ID. Returns `400` with `{ "error": "A student with this Student ID already exists." }`.
+
 ## Example POST request
 
 From PowerShell, use valid JSON like this (all fields are required, and `status` must be one of `Active`, `On Leave`, `Graduated`, `Withdrawn`):

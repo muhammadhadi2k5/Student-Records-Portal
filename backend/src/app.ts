@@ -4,7 +4,7 @@ import express, { type ErrorRequestHandler, type Request, type Response } from '
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
 import { type CreateStudentRecordDTO, type StudentRecord, type StudentStatus, STUDENT_STATUSES } from './models/student';
-import { validatePagination, validateStudentRecordInput } from './validation';
+import { normalizeStudentId, validatePagination, validateStudentRecordInput } from './validation';
 
 function generateStudentId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -89,6 +89,15 @@ export function createApp(options?: { dataFilePath?: string }) {
         payload.enrolledAt,
       );
 
+      const normalizedId = normalizeStudentId(payload.studentId.trim());
+      const isDuplicate =
+        normalizedId.length > 0 &&
+        studentRepo.getAll().some((existing) => normalizeStudentId(existing.studentId) === normalizedId);
+
+      if (isDuplicate) {
+        return res.status(400).json({ error: 'A student with this Student ID already exists.' });
+      }
+
       const student: StudentRecord = {
         id: generateStudentId(),
         firstName: payload.firstName.trim(),
@@ -141,6 +150,17 @@ export function createApp(options?: { dataFilePath?: string }) {
         payload.status,
         payload.enrolledAt,
       );
+
+      const normalizedId = normalizeStudentId(payload.studentId.trim());
+      const isDuplicate =
+        normalizedId.length > 0 &&
+        studentRepo
+          .getAll()
+          .some((existing) => existing.id !== studentId && normalizeStudentId(existing.studentId) === normalizedId);
+
+      if (isDuplicate) {
+        return res.status(400).json({ error: 'A student with this Student ID already exists.' });
+      }
 
       const updatedStudent: StudentRecord = {
         id: studentId,

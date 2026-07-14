@@ -88,6 +88,10 @@ export function validateStudentInput(
     }
 }
 
+export function normalizeStudentId(studentId: string): string {
+    return studentId.replace(/\D/g, "");
+}
+
 export function validatePagination(page: unknown, limit: unknown): { page: number; limit: number } {
     const parsedPage = page === undefined ? 1 : Number(page);
     const parsedLimit = limit === undefined ? 10 : Number(limit);
