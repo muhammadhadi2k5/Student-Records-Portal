@@ -117,6 +117,69 @@ test('paginates, searches, and validates query params on GET /students', async (
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
+test('sorts and filters students on GET /students', async () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-sort-'));
+  const dataFile = path.join(tempDir, 'students.json');
+  const app = createApp({ dataFilePath: dataFile });
+
+  const seedData = [
+    { firstName: 'Charlie', lastName: 'Zephyr', program: 'Computer Science', year: 3, status: 'Active' },
+    { firstName: 'Alice', lastName: 'Adams', program: 'Business Administration', year: 1, status: 'Graduated' },
+    { firstName: 'Bob', lastName: 'Mills', program: 'Computer Science', year: 2, status: 'On Leave' },
+  ];
+
+  for (const s of seedData) {
+    await request(app)
+      .post('/students')
+      .send({
+        firstName: s.firstName,
+        lastName: s.lastName,
+        email: `${s.firstName.toLowerCase()}@example.com`,
+        studentId: `S-${s.firstName}`,
+        program: s.program,
+        year: s.year,
+        status: s.status,
+        enrolledAt: '2026-01-15',
+      })
+      .expect(201);
+  }
+
+  const sortedAsc = await request(app).get('/students?sortBy=lastName&sortOrder=asc').expect(200);
+  assert.deepEqual(
+    sortedAsc.body.data.map((s: { lastName: string }) => s.lastName),
+    ['Adams', 'Mills', 'Zephyr'],
+  );
+
+  const sortedDesc = await request(app).get('/students?sortBy=year&sortOrder=desc').expect(200);
+  assert.deepEqual(
+    sortedDesc.body.data.map((s: { year: number }) => s.year),
+    [3, 2, 1],
+  );
+
+  const byStatus = await request(app).get('/students?status=Active').expect(200);
+  assert.equal(byStatus.body.total, 1);
+  assert.equal(byStatus.body.data[0].firstName, 'Charlie');
+
+  const byProgram = await request(app).get('/students?program=Computer Science').expect(200);
+  assert.equal(byProgram.body.total, 2);
+
+  const byYear = await request(app).get('/students?year=1').expect(200);
+  assert.equal(byYear.body.total, 1);
+  assert.equal(byYear.body.data[0].firstName, 'Alice');
+
+  const combined = await request(app).get('/students?program=Computer Science&sortBy=lastName&sortOrder=desc').expect(200);
+  assert.deepEqual(
+    combined.body.data.map((s: { lastName: string }) => s.lastName),
+    ['Zephyr', 'Mills'],
+  );
+
+  await request(app).get('/students?sortBy=nonsense').expect(400);
+  await request(app).get('/students?sortBy=year&sortOrder=sideways').expect(400);
+  await request(app).get('/students?year=0').expect(400);
+
+  fs.rmSync(tempDir, { recursive: true, force: true });
+});
+
 test('rejects a duplicate Student ID that differs only by formatting, but allows updating a record unchanged', async () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-dup-'));
   const dataFile = path.join(tempDir, 'students.json');

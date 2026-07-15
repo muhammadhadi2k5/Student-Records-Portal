@@ -12,10 +12,18 @@ export type Student = {
 
 export type StudentInput = Omit<Student, "id">;
 
+export type SortableField = "firstName" | "lastName" | "studentId" | "program" | "year" | "status" | "enrolledAt";
+export type SortOrder = "asc" | "desc";
+
 export type ListStudentsParams = {
   page?: number;
   limit?: number;
   search?: string;
+  sortBy?: SortableField;
+  sortOrder?: SortOrder;
+  status?: Student["status"];
+  program?: string;
+  year?: number;
 };
 
 export type PaginatedStudents = {
@@ -118,13 +126,18 @@ export async function listStudents(params: ListStudentsParams = {}): Promise<Pag
   if (API_BASE) {
     const query = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (search) query.set("search", search);
+    if (params.sortBy) query.set("sortBy", params.sortBy);
+    if (params.sortOrder) query.set("sortOrder", params.sortOrder);
+    if (params.status) query.set("status", params.status);
+    if (params.program) query.set("program", params.program);
+    if (params.year !== undefined) query.set("year", String(params.year));
     const res = await fetch(`${API_BASE}/students?${query}`);
     if (!res.ok) throw new Error(await parseErrorMessage(res, "Failed to load students"));
     return res.json();
   }
 
   const all = readLocal();
-  const filtered = search
+  let filtered = search
     ? all.filter((s) =>
         [s.firstName, s.lastName, s.email, s.studentId, s.program]
           .join(" ")
@@ -132,6 +145,30 @@ export async function listStudents(params: ListStudentsParams = {}): Promise<Pag
           .includes(search.toLowerCase()),
       )
     : all;
+
+  if (params.status) {
+    filtered = filtered.filter((s) => s.status === params.status);
+  }
+  if (params.program) {
+    const program = params.program.toLowerCase();
+    filtered = filtered.filter((s) => s.program.toLowerCase() === program);
+  }
+  if (params.year !== undefined) {
+    filtered = filtered.filter((s) => s.year === params.year);
+  }
+
+  if (params.sortBy) {
+    const sortBy = params.sortBy;
+    const direction = params.sortOrder === "desc" ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => {
+      const left = a[sortBy];
+      const right = b[sortBy];
+      if (typeof left === "number" && typeof right === "number") {
+        return (left - right) * direction;
+      }
+      return String(left).localeCompare(String(right)) * direction;
+    });
+  }
 
   const total = filtered.length;
   const totalPages = total === 0 ? 0 : Math.ceil(total / limit);

@@ -92,6 +92,39 @@ export function normalizeStudentId(studentId: string): string {
     return studentId.replace(/\D/g, "");
 }
 
+const SORTABLE_FIELDS = ["firstName", "lastName", "studentId", "program", "year", "status", "enrolledAt"] as const;
+export type SortableField = (typeof SORTABLE_FIELDS)[number];
+export type SortOrder = "asc" | "desc";
+
+export function validateSort(
+    sortBy: unknown,
+    sortOrder: unknown,
+): { sortBy: SortableField | undefined; sortOrder: SortOrder } {
+    if (sortBy === undefined) {
+        return { sortBy: undefined, sortOrder: "asc" };
+    }
+
+    if (typeof sortBy !== "string" || !SORTABLE_FIELDS.includes(sortBy as SortableField)) {
+        throw new Error(`sortBy must be one of: ${SORTABLE_FIELDS.join(", ")}.`);
+    }
+
+    if (sortOrder !== undefined && sortOrder !== "asc" && sortOrder !== "desc") {
+        throw new Error("sortOrder must be 'asc' or 'desc'.");
+    }
+
+    return { sortBy: sortBy as SortableField, sortOrder: (sortOrder as SortOrder) ?? "asc" };
+}
+
+export function validateYearFilter(year: unknown): number | undefined {
+    if (year === undefined) return undefined;
+
+    const parsed = Number(year);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 4) {
+        throw new Error("year filter must be an integer between 1 and 4.");
+    }
+    return parsed;
+}
+
 export function validatePagination(page: unknown, limit: unknown): { page: number; limit: number } {
     const parsedPage = page === undefined ? 1 : Number(page);
     const parsedLimit = limit === undefined ? 10 : Number(limit);

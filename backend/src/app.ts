@@ -4,7 +4,13 @@ import express, { type ErrorRequestHandler, type Request, type Response } from '
 import { simulateApiCall } from './api';
 import { Repository } from './repository';
 import { type CreateStudentRecordDTO, type StudentRecord, type StudentStatus, STUDENT_STATUSES } from './models/student';
-import { normalizeStudentId, validatePagination, validateStudentRecordInput } from './validation';
+import {
+  normalizeStudentId,
+  validatePagination,
+  validateSort,
+  validateStudentRecordInput,
+  validateYearFilter,
+} from './validation';
 
 function generateStudentId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -44,13 +50,25 @@ export function createApp(options?: { dataFilePath?: string }) {
       const rawPage = Array.isArray(req.query.page) ? req.query.page[0] : req.query.page;
       const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
       const rawSearch = Array.isArray(req.query.search) ? req.query.search[0] : req.query.search;
+      const rawSortBy = Array.isArray(req.query.sortBy) ? req.query.sortBy[0] : req.query.sortBy;
+      const rawSortOrder = Array.isArray(req.query.sortOrder) ? req.query.sortOrder[0] : req.query.sortOrder;
+      const rawStatus = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
+      const rawProgram = Array.isArray(req.query.program) ? req.query.program[0] : req.query.program;
+      const rawYear = Array.isArray(req.query.year) ? req.query.year[0] : req.query.year;
 
       const { page, limit } = validatePagination(rawPage, rawLimit);
+      const { sortBy, sortOrder } = validateSort(rawSortBy, rawSortOrder);
+      const yearFilter = validateYearFilter(rawYear);
       const search = typeof rawSearch === 'string' ? rawSearch.trim().toLowerCase() : '';
+      const statusFilter =
+        typeof rawStatus === 'string' && STUDENT_STATUSES.includes(rawStatus as StudentStatus)
+          ? (rawStatus as StudentStatus)
+          : undefined;
+      const programFilter = typeof rawProgram === 'string' && rawProgram.trim() ? rawProgram.trim().toLowerCase() : undefined;
 
       const allStudents = await simulateApiCall(studentRepo.getAll(), 0);
 
-      const filtered = search
+      let filtered = search
         ? allStudents.filter((s) =>
             [s.firstName, s.lastName, s.email, s.studentId, s.program]
               .join(' ')
@@ -58,6 +76,28 @@ export function createApp(options?: { dataFilePath?: string }) {
               .includes(search),
           )
         : allStudents;
+
+      if (statusFilter) {
+        filtered = filtered.filter((s) => s.status === statusFilter);
+      }
+      if (programFilter) {
+        filtered = filtered.filter((s) => s.program.toLowerCase() === programFilter);
+      }
+      if (yearFilter !== undefined) {
+        filtered = filtered.filter((s) => s.year === yearFilter);
+      }
+
+      if (sortBy) {
+        const direction = sortOrder === 'desc' ? -1 : 1;
+        filtered = [...filtered].sort((a, b) => {
+          const left = a[sortBy];
+          const right = b[sortBy];
+          if (typeof left === 'number' && typeof right === 'number') {
+            return (left - right) * direction;
+          }
+          return String(left).localeCompare(String(right)) * direction;
+        });
+      }
 
       const total = filtered.length;
       const totalPages = total === 0 ? 0 : Math.ceil(total / limit);

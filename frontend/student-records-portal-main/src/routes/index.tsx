@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { deleteStudent, listStudents, type Student } from "@/lib/students-api";
+import { deleteStudent, listStudents, type SortableField, type SortOrder, type Student } from "@/lib/students-api";
 import {
   addSearchHistoryEntry,
   clearSearchHistory,
@@ -20,7 +20,12 @@ const statusStyles: Record<Student["status"], string> = {
   Withdrawn: "bg-muted text-muted-foreground border-border",
 };
 
+const STATUS_OPTIONS: Student["status"][] = ["Active", "On Leave", "Graduated", "Withdrawn"];
+const YEAR_OPTIONS = [1, 2, 3, 4];
 const PAGE_SIZE = 10;
+
+const selectClass =
+  "rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-foreground outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30";
 
 function StudentsIndex() {
   const queryClient = useQueryClient();
@@ -29,6 +34,11 @@ function StudentsIndex() {
   const [page, setPage] = useState(1);
   const [history, setHistory] = useState<SearchHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [sortBy, setSortBy] = useState<SortableField | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
+  const [statusFilter, setStatusFilter] = useState<Student["status"] | "">("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearFilter, setYearFilter] = useState<number | "">("");
 
   useEffect(() => {
     setHistory(getSearchHistory());
@@ -41,16 +51,56 @@ function StudentsIndex() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQuery]);
+  }, [debouncedQuery, sortBy, sortOrder, statusFilter, programFilter, yearFilter]);
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["students", page, debouncedQuery],
-    queryFn: () => listStudents({ page, limit: PAGE_SIZE, search: debouncedQuery }),
+    queryKey: ["students", page, debouncedQuery, sortBy, sortOrder, statusFilter, programFilter, yearFilter],
+    queryFn: () =>
+      listStudents({
+        page,
+        limit: PAGE_SIZE,
+        search: debouncedQuery,
+        sortBy,
+        sortOrder,
+        status: statusFilter || undefined,
+        program: programFilter || undefined,
+        year: yearFilter === "" ? undefined : yearFilter,
+      }),
   });
 
   const students = data?.data ?? [];
   const total = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 0;
+
+  // Programs list is capped at 100 students; fine for this dataset's scale, but
+  // wouldn't capture every distinct program past that many records.
+  const { data: programsData } = useQuery({
+    queryKey: ["students", "programs"],
+    queryFn: () => listStudents({ limit: 100 }),
+  });
+  const programOptions = Array.from(new Set((programsData?.data ?? []).map((s) => s.program))).sort();
+
+  const hasActiveFilters = statusFilter !== "" || programFilter !== "" || yearFilter !== "";
+
+  function handleSort(field: SortableField) {
+    if (sortBy === field) {
+      setSortOrder((order) => (order === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+  }
+
+  function sortIndicator(field: SortableField) {
+    if (sortBy !== field) return null;
+    return sortOrder === "asc" ? " ▲" : " ▼";
+  }
+
+  function clearFilters() {
+    setStatusFilter("");
+    setProgramFilter("");
+    setYearFilter("");
+  }
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => deleteStudent(id),
@@ -157,6 +207,48 @@ function StudentsIndex() {
         </p>
       </div>
 
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as Student["status"] | "")}
+          className={selectClass}
+        >
+          <option value="">All statuses</option>
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <select
+          value={programFilter}
+          onChange={(e) => setProgramFilter(e.target.value)}
+          className={selectClass}
+        >
+          <option value="">All programs</option>
+          {programOptions.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <select
+          value={yearFilter}
+          onChange={(e) => setYearFilter(e.target.value === "" ? "" : Number(e.target.value))}
+          className={selectClass}
+        >
+          <option value="">All years</option>
+          {YEAR_OPTIONS.map((y) => (
+            <option key={y} value={y}>Year {y}</option>
+          ))}
+        </select>
+        {hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs text-muted-foreground hover:text-destructive hover:underline"
+          >
+            Clear filters
+          </button>
+        ) : null}
+      </div>
+
       <div className="mt-4 overflow-x-auto rounded-md border border-border bg-card shadow-[var(--shadow-card)]">
         {isLoading ? (
           <div className="p-10 text-center text-sm text-muted-foreground">Loading records…</div>
@@ -172,11 +264,31 @@ function StudentsIndex() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-secondary/60 text-xs uppercase tracking-wider text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Student ID</th>
-                <th className="px-4 py-3 font-medium">Program</th>
-                <th className="px-4 py-3 font-medium">Year</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">
+                  <button type="button" onClick={() => handleSort("lastName")} className="hover:text-foreground">
+                    Name{sortIndicator("lastName")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <button type="button" onClick={() => handleSort("studentId")} className="hover:text-foreground">
+                    Student ID{sortIndicator("studentId")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <button type="button" onClick={() => handleSort("program")} className="hover:text-foreground">
+                    Program{sortIndicator("program")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <button type="button" onClick={() => handleSort("year")} className="hover:text-foreground">
+                    Year{sortIndicator("year")}
+                  </button>
+                </th>
+                <th className="px-4 py-3 font-medium">
+                  <button type="button" onClick={() => handleSort("status")} className="hover:text-foreground">
+                    Status{sortIndicator("status")}
+                  </button>
+                </th>
                 <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
