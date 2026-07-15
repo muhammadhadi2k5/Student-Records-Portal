@@ -1,9 +1,7 @@
 import cors from 'cors';
-import path from 'node:path';
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
-import { simulateApiCall } from './api';
-import { Repository } from './repository';
-import { type CreateStudentRecordDTO, type StudentRecord, type StudentStatus, STUDENT_STATUSES } from './models/student';
+import { studentRepository } from './student-repository';
+import { type CreateStudentRecordDTO, type StudentStatus, STUDENT_STATUSES } from './models/student';
 import {
   normalizeStudentId,
   validatePagination,
@@ -11,10 +9,6 @@ import {
   validateStudentRecordInput,
   validateYearFilter,
 } from './validation';
-
-function generateStudentId(): string {
-  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
 
 function isCreateStudentPayload(body: unknown): body is CreateStudentRecordDTO {
   if (typeof body !== 'object' || body === null) {
@@ -36,11 +30,9 @@ function isCreateStudentPayload(body: unknown): body is CreateStudentRecordDTO {
   );
 }
 
-export function createApp(options?: { dataFilePath?: string }) {
+export function createApp() {
   const app = express();
-  const defaultDataFilePath = path.resolve(__dirname, '..', 'data', 'students.json');
-  const dataFilePath = options?.dataFilePath ?? defaultDataFilePath;
-  const studentRepo = new Repository<StudentRecord>(dataFilePath);
+  const studentRepo = studentRepository;
 
   app.use(cors());
   app.use(express.json());
@@ -66,7 +58,7 @@ export function createApp(options?: { dataFilePath?: string }) {
           : undefined;
       const programFilter = typeof rawProgram === 'string' && rawProgram.trim() ? rawProgram.trim().toLowerCase() : undefined;
 
-      const allStudents = await simulateApiCall(studentRepo.getAll(), 0);
+      const allStudents = await studentRepo.getAll();
 
       let filtered = search
         ? allStudents.filter((s) =>
@@ -133,16 +125,16 @@ export function createApp(options?: { dataFilePath?: string }) {
       );
 
       const normalizedId = normalizeStudentId(payload.studentId.trim());
+      const existingStudents = await studentRepo.getAll();
       const isDuplicate =
         normalizedId.length > 0 &&
-        studentRepo.getAll().some((existing) => normalizeStudentId(existing.studentId) === normalizedId);
+        existingStudents.some((existing) => normalizeStudentId(existing.studentId) === normalizedId);
 
       if (isDuplicate) {
         return res.status(400).json({ error: 'A student with this Student ID already exists.' });
       }
 
-      const student: StudentRecord = {
-        id: generateStudentId(),
+      const savedStudent = await studentRepo.create({
         firstName: payload.firstName.trim(),
         lastName: payload.lastName.trim(),
         email: payload.email.trim(),
@@ -151,10 +143,7 @@ export function createApp(options?: { dataFilePath?: string }) {
         year: payload.year,
         status: payload.status,
         enrolledAt: payload.enrolledAt,
-      };
-
-      const savedStudent = await simulateApiCall(student, 0);
-      studentRepo.add(savedStudent);
+      });
 
       return res.status(201).json(savedStudent);
     } catch (error) {
@@ -163,9 +152,9 @@ export function createApp(options?: { dataFilePath?: string }) {
     }
   });
 
-  app.get('/students/:id', (req: Request, res: Response) => {
+  app.get('/students/:id', async (req: Request, res: Response) => {
     const studentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const student = studentRepo.findById(studentId, (item) => item.id);
+    const student = await studentRepo.findById(studentId);
 
     if (!student) {
       return res.status(404).json({ error: 'Student not found.' });
@@ -195,18 +184,18 @@ export function createApp(options?: { dataFilePath?: string }) {
       );
 
       const normalizedId = normalizeStudentId(payload.studentId.trim());
+      const existingStudents = await studentRepo.getAll();
       const isDuplicate =
         normalizedId.length > 0 &&
-        studentRepo
-          .getAll()
-          .some((existing) => existing.id !== studentId && normalizeStudentId(existing.studentId) === normalizedId);
+        existingStudents.some(
+          (existing) => existing.id !== studentId && normalizeStudentId(existing.studentId) === normalizedId,
+        );
 
       if (isDuplicate) {
         return res.status(400).json({ error: 'A student with this Student ID already exists.' });
       }
 
-      const updatedStudent: StudentRecord = {
-        id: studentId,
+      const updated = await studentRepo.updateById(studentId, {
         firstName: payload.firstName.trim(),
         lastName: payload.lastName.trim(),
         email: payload.email.trim(),
@@ -215,25 +204,22 @@ export function createApp(options?: { dataFilePath?: string }) {
         year: payload.year,
         status: payload.status,
         enrolledAt: payload.enrolledAt,
-      };
-
-      const updated = studentRepo.updateById(studentId, (item) => item.id, updatedStudent);
+      });
 
       if (!updated) {
         return res.status(404).json({ error: 'Student not found.' });
       }
 
-      const savedStudent = await simulateApiCall(updatedStudent, 0);
-      return res.status(200).json(savedStudent);
+      return res.status(200).json(updated);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid student data.';
       return res.status(400).json({ error: message });
     }
   });
 
-  app.delete('/students/:id', (req: Request, res: Response) => {
+  app.delete('/students/:id', async (req: Request, res: Response) => {
     const studentId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-    const deleted = studentRepo.deleteById(studentId, (item) => item.id);
+    const deleted = await studentRepo.deleteById(studentId);
 
     if (!deleted) {
       return res.status(404).json({ error: 'Student not found.' });

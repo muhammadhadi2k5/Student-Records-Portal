@@ -1,15 +1,21 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import request from 'supertest';
 import { createApp } from './app';
+import { pool } from './db';
+
+// Tests run against your real Postgres database (whatever DATABASE_URL in
+// .env points at), since there's no per-test temp file anymore. Wiping the
+// table before each test keeps them isolated from one another - which also
+// means running `npm test` clears out any real data you've added by hand.
+// Don't run this against a database you care about; point DATABASE_URL at a
+// separate test database once you have one.
+beforeEach(async () => {
+  await pool.query('TRUNCATE TABLE students RESTART IDENTITY');
+});
 
 test('creates and lists students through the API', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-'));
-  const dataFile = path.join(tempDir, 'students.json');
-  const app = createApp({ dataFilePath: dataFile });
+  const app = createApp();
 
   const createResponse = await request(app)
     .post('/students')
@@ -37,15 +43,10 @@ test('creates and lists students through the API', async () => {
   assert.equal(listResponse.body.total, 1);
   assert.equal(listResponse.body.page, 1);
   assert.equal(listResponse.body.totalPages, 1);
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
-test('persists students to disk between app instances', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-'));
-  const dataFile = path.join(tempDir, 'students.json');
-
-  const appOne = createApp({ dataFilePath: dataFile });
+test('persists students between app instances', async () => {
+  const appOne = createApp();
   const createResponse = await request(appOne)
     .post('/students')
     .send({
@@ -58,26 +59,21 @@ test('persists students to disk between app instances', async () => {
       status: 'Active',
       enrolledAt: '2026-08-15',
     })
-
     .expect(201);
 
   assert.equal(createResponse.body.firstName, 'Hadi');
 
-  const appTwo = createApp({ dataFilePath: dataFile });
+  const appTwo = createApp();
   const listResponse = await request(appTwo)
     .get('/students')
     .expect(200);
 
   assert.equal(listResponse.body.data.length, 1);
   assert.equal(listResponse.body.data[0].firstName, 'Hadi');
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test('paginates, searches, and validates query params on GET /students', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-page-'));
-  const dataFile = path.join(tempDir, 'students.json');
-  const app = createApp({ dataFilePath: dataFile });
+  const app = createApp();
 
   for (let i = 1; i <= 15; i++) {
     await request(app)
@@ -113,14 +109,10 @@ test('paginates, searches, and validates query params on GET /students', async (
   await request(app).get('/students?page=0').expect(400);
   await request(app).get('/students?page=abc').expect(400);
   await request(app).get('/students?limit=101').expect(400);
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test('defaults to newest-created first when no sort is specified', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-default-order-'));
-  const dataFile = path.join(tempDir, 'students.json');
-  const app = createApp({ dataFilePath: dataFile });
+  const app = createApp();
 
   for (const firstName of ['First', 'Second', 'Third']) {
     await request(app)
@@ -143,14 +135,10 @@ test('defaults to newest-created first when no sort is specified', async () => {
     response.body.data.map((s: { firstName: string }) => s.firstName),
     ['Third', 'Second', 'First'],
   );
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test('sorts and filters students on GET /students', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-sort-'));
-  const dataFile = path.join(tempDir, 'students.json');
-  const app = createApp({ dataFilePath: dataFile });
+  const app = createApp();
 
   const seedData = [
     { firstName: 'Charlie', lastName: 'Zephyr', program: 'Computer Science', year: 3, status: 'Active' },
@@ -206,14 +194,10 @@ test('sorts and filters students on GET /students', async () => {
   await request(app).get('/students?sortBy=nonsense').expect(400);
   await request(app).get('/students?sortBy=year&sortOrder=sideways').expect(400);
   await request(app).get('/students?year=0').expect(400);
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
 test('rejects a duplicate Student ID that differs only by formatting, but allows updating a record unchanged', async () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-dup-'));
-  const dataFile = path.join(tempDir, 'students.json');
-  const app = createApp({ dataFilePath: dataFile });
+  const app = createApp();
 
   const original = await request(app)
     .post('/students')
@@ -290,43 +274,4 @@ test('rejects a duplicate Student ID that differs only by formatting, but allows
     })
     .expect(400);
   assert.match(stolenIdResponse.body.error, /already exists/i);
-
-  fs.rmSync(tempDir, { recursive: true, force: true });
-});
-
-test('writes to the project data file even when the current working directory changes', async () => {
-  const originalCwd = process.cwd();
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'students-cwd-'));
-  const expectedFile = path.resolve(__dirname, '..', 'data', 'students.json');
-  const originalContent = fs.existsSync(expectedFile) ? fs.readFileSync(expectedFile, 'utf8') : null;
-
-  process.chdir(tempDir);
-
-  try {
-    const app = createApp();
-    await request(app)
-      .post('/students')
-      .send({
-        firstName: 'Alice',
-        lastName: 'Test',
-        email: 'Alice@example.com',
-        studentId: 'S1002',
-        program: 'Visual Arts',
-        year: 3,
-        status: 'On Leave',
-        enrolledAt: '2026-08-15',
-      })
-      .expect(201);
-
-    assert.equal(fs.existsSync(expectedFile), true);
-  } finally {
-    process.chdir(originalCwd);
-    fs.rmSync(tempDir, { recursive: true, force: true });
-
-    if (originalContent === null) {
-      fs.rmSync(expectedFile, { force: true });
-    } else {
-      fs.writeFileSync(expectedFile, originalContent);
-    }
-  }
 });
