@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import type { Student, StudentInput } from "@/lib/students-api";
+import { ProgramCombobox } from "@/components/program-combobox";
 
 type Props = {
   initial?: Student;
@@ -188,12 +189,14 @@ export function StudentForm({
           </div>
           <div>
             <label className={labelClass} htmlFor="program">Program</label>
-            <input
-              id="program"
-              className={`${fieldClass} ${fieldErrors.program ? fieldErrorClass : ""}`}
-              value={form.program}
-              onChange={(e) => set("program", e.target.value)}
-            />
+            <div className="mt-1.5">
+              <ProgramCombobox
+                id="program"
+                value={form.program}
+                onChange={(value) => set("program", value)}
+                className={fieldErrors.program ? fieldErrorClass : ""}
+              />
+            </div>
             {fieldErrors.program ? <p className={errorTextClass}>{fieldErrors.program}</p> : null}
           </div>
           <div>
