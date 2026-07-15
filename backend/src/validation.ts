@@ -33,10 +33,6 @@ export function validateEmail(email: string): void {
     if (!email.includes(".com")){
         throw new Error("Email must contain a valid domain (e.g. '.com').");
     }
-
-    if (!email.includes(".")) {
-        throw new Error("Email must contain a valid domain (e.g. '.com').");
-    }
 }
 
 export function validateStudentInput(
@@ -62,28 +58,6 @@ export function validateStudentInput(
     if (program !== undefined) {
         if (program.trim().length === 0) {
             throw new Error("Program cannot be empty.");
-        }
-    }
-
-    if (year !== undefined) {
-        if (!Number.isInteger(year) || year < 1 || year > 10) {
-            throw new Error("Year must be an integer between 1 and 10.");
-        }
-    }
-
-    if (status !== undefined) {
-        if (status.trim().length === 0) {
-            throw new Error("Status cannot be empty.");
-        }
-    }
-
-    if (enrolledAt !== undefined) {
-        if (enrolledAt.trim().length === 0) {
-            throw new Error("Enrolment date cannot be empty.");
-        }
-        const date = new Date(enrolledAt);
-        if (Number.isNaN(date.getTime())) {
-            throw new Error("Enrolment date must be a valid date.");
         }
     }
 }
