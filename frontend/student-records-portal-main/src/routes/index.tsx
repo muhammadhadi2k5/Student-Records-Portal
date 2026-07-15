@@ -8,6 +8,16 @@ import {
   getSearchHistory,
   type SearchHistoryEntry,
 } from "@/lib/search-history";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/")({
   component: StudentsIndex,
@@ -39,6 +49,7 @@ function StudentsIndex() {
   const [statusFilter, setStatusFilter] = useState<Student["status"] | "">("");
   const [programFilter, setProgramFilter] = useState("");
   const [yearFilter, setYearFilter] = useState<number | "">("");
+  const [studentPendingDelete, setStudentPendingDelete] = useState<Student | null>(null);
 
   useEffect(() => {
     setHistory(getSearchHistory());
@@ -108,8 +119,13 @@ function StudentsIndex() {
   });
 
   function handleDelete(s: Student) {
-    if (!confirm(`Remove ${s.firstName} ${s.lastName} from the registry?`)) return;
-    removeMutation.mutate(s.id);
+    setStudentPendingDelete(s);
+  }
+
+  function confirmDelete() {
+    if (!studentPendingDelete) return;
+    removeMutation.mutate(studentPendingDelete.id);
+    setStudentPendingDelete(null);
   }
 
   function recordVisit(s: Student) {
@@ -372,6 +388,33 @@ function StudentsIndex() {
           </div>
         </div>
       )}
+
+      <AlertDialog
+        open={studentPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setStudentPendingDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove student record?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {studentPendingDelete
+                ? `This will permanently remove ${studentPendingDelete.firstName} ${studentPendingDelete.lastName} from the registry. This can't be undone.`
+                : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
