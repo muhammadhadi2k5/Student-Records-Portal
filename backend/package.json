@@ -7,7 +7,8 @@
     "dev": "ts-node ./src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test -r ts-node/register ./src/app.test.ts",
-    "migrate:json": "ts-node ./src/migrate-json-to-db.ts"
+    "migrate:json": "ts-node ./src/migrate-json-to-db.ts",
+    "seed:programs": "ts-node ./src/seed-by-program.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
