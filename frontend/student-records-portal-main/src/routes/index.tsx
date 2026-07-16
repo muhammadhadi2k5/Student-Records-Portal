@@ -27,7 +27,7 @@ const statusStyles: Record<Student["status"], string> = {
   Active: "bg-primary/10 text-primary border-primary/20",
   "On Leave": "bg-amber-50 text-amber-800 border-amber-200",
   Graduated: "bg-emerald-50 text-emerald-800 border-emerald-200",
-  Withdrawn: "bg-muted text-muted-foreground border-border",
+  Withdrawn: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 const STATUS_OPTIONS: Student["status"][] = ["Active", "On Leave", "Graduated", "Withdrawn"];
